@@ -1,4 +1,4 @@
-# SC_CTSI – Diabetes Prevention Program Management (DPPM)
+# SC CTSI – Diabetes Prevention Program Management and Training
 ## Linear Mixed-Effects Model (LMM) Analysis for Knowledge Scores
 
 This project contains the analytic workflow used to evaluate changes in diabetes knowledge following a structured training program, with a focus on whether learning and retention differed across sequential implementation phases. The primary analysis uses a **linear mixed-effects model (LMM)** to account for repeated measurements within participants and unbalanced follow-up.
@@ -68,26 +68,31 @@ The LMM was selected because it:
 
 ## Model Specification
 
-The primary model includes fixed effects for **timepoint**, **phase**, and their interaction, with a **participant-level random intercept**:
+The primary analysis uses a linear mixed-effects model with fixed effects for **timepoint**, **implementation phase**, and their interaction, and a **participant-level random intercept** to account for repeated measurements.
 
-\[
-\text{Score}_{ij}
-= \beta_0
-+ \beta_1(\text{Post})
-+ \beta_2(\text{Follow-up})
-+ \beta_3(\text{Phase 2})
-+ \beta_4(\text{Phase 3})
-+ \beta_5(\text{Post} \times \text{Phase 2})
-+ \beta_6(\text{Follow-up} \times \text{Phase 2})
-+ \beta_7(\text{Post} \times \text{Phase 3})
-+ \beta_8(\text{Follow-up} \times \text{Phase 3})
-+ u_i
-+ \varepsilon_{ij}
-\]
+**Model form:**
 
-Where:
-- \(u_i\) is a participant-level random intercept
-- \(\varepsilon_{ij}\) is residual error
+Score_ij = β0  
+  + β1(Post-training)_ij  
+  + β2(1-Month Follow-up)_ij  
+  + β3(Phase 2)_i  
+  + β4(Phase 3)_i  
+  + β5(Post-training × Phase 2)_ij  
+  + β6(Follow-up × Phase 2)_ij  
+  + β7(Post-training × Phase 3)_ij  
+  + β8(Follow-up × Phase 3)_ij  
+  + u_i  
+  + ε_ij  
+
+where:
+
+- **i** indexes participants and **j** indexes timepoints  
+- **β0** is the mean baseline knowledge score for Phase 1 at pre-training  
+- **β1–β2** represent within-phase changes over time (Phase 1 reference)  
+- **β3–β4** represent baseline differences by phase  
+- **β5–β8** represent phase-specific differences in knowledge change over time  
+- **u_i** is a participant-level random intercept (assumed ~ N(0, σ²_u))  
+- **ε_ij** is the residual error term (assumed ~ N(0, σ²))
 
 **Reference categories (for interpretation):**
 - Reference phase: **Phase 1**
