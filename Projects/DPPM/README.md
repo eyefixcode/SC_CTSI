@@ -72,7 +72,7 @@ The primary analysis uses a linear mixed-effects model with fixed effects for **
 
 **Model form:**
 
-Score_ij = β0 + β1(Post-training)ij + β2(1-Month Follow-up)ij + β3(Phase 2)ij + β4(Phase 3)ij + β5(Post-training × Phase 2)ij + β6(Follow-up × Phase 2)ij + β7(Post-training × Phase 3)ij + β8(Follow-up × Phase 3)ij + u_i + ε_ij  
+Score ij = β0 + β1(Post-training)ij + β2(1-Month Follow-up)ij + β3(Phase 2)ij + β4(Phase 3)ij + β5(Post-training × Phase 2)ij + β6(Follow-up × Phase 2)ij + β7(Post-training × Phase 3)ij + β8(Follow-up × Phase 3)ij + ui + εij  
 
 where:
 
@@ -81,8 +81,8 @@ where:
 - **β1–β2** represent within-phase changes over time (Phase 1 reference)  
 - **β3–β4** represent baseline differences by phase  
 - **β5–β8** represent phase-specific differences in knowledge change over time  
-- **u_i** is a participant-level random intercept (assumed ~ N(0, σ²_u))  
-- **ε_ij** is the residual error term (assumed ~ N(0, σ²))
+- **ui** is a participant-level random intercept (assumed ~ N(0, σ²_u))  
+- **εij** is the residual error term (assumed ~ N(0, σ²))
 
 **Reference categories (for interpretation):**
 - Reference phase: **Phase 1**
