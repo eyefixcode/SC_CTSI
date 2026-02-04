@@ -117,13 +117,53 @@ A “Solution for Fixed Effects”-style output table including:
 
 ---
 
-## Reproducibility Notes
+## Results Outputs
 
-- Factor reference levels are explicitly set to support consistent interpretation:
-  - `Timepoint`: `pretraining` is the reference
-  - `Phase`: `Phase 1` is the reference
-- Manuscript labels are defined once and reused consistently for plots
-- Missing observations are handled using all available data (consistent with LMM assumptions)
+📂 Results directory:  
+https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Results
+
+### Descriptive Distributions
+
+- **`Histogram_Freq_By_Phase_Timepoint.png`**  
+  Frequency histograms of knowledge scores stratified by **Phase × Timepoint**.  
+  Panels use free y-axis scaling to accommodate unequal sample sizes and highlight distributional shape, ceiling effects, and phase-specific patterns.
+
+- **`Histogram_Pooled_By_Phase.png`**  
+  Knowledge score distributions pooled across timepoints and stratified by phase.  
+  Intended as a high-level descriptive summary of overall score distributions by implementation phase.
+
+- **`Density_Distribution_PhaseTimepoint.png`**  
+  Density-based representations of score distributions by phase and timepoint.  
+  These plots emphasize distributional shape rather than counts and are primarily intended for exploratory or supplemental use.
+
+---
+
+### Model-Adjusted Results
+
+- **`KnowledgeScoreOverTimebyPhase.png`**  
+  Estimated marginal means (LS-means) of knowledge scores over time within each phase, derived from the linear mixed-effects model.  
+  Points represent adjusted means and error bars indicate 95% confidence intervals.  
+  This figure is the primary visualization supporting phase-specific learning and retention effects.
+
+- **`LMM_Results.png`**  
+  Summary visualization of fixed-effect estimates from the linear mixed-effects model.  
+  Designed to align directly with manuscript tables and reported coefficients.
+
+---
+
+### Model Diagnostics
+
+- **`ResidualPlot.png`**  
+  Residuals versus fitted values plot used to assess linearity and homoscedasticity assumptions of the linear mixed-effects model.
+
+- **`QQ_plot.png`**  
+  Normal Q–Q plot of model residuals used to assess approximate normality.
+
+---
+
+### Notes
+
+- All figures are generated directly from the analysis script (`LMM.R`) to ensure reproducibility.
 
 ---
 
