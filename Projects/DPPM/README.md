@@ -72,17 +72,7 @@ The primary analysis uses a linear mixed-effects model with fixed effects for **
 
 **Model form:**
 
-Score_ij = β0  
-  + β1(Post-training)_ij  
-  + β2(1-Month Follow-up)_ij  
-  + β3(Phase 2)_i  
-  + β4(Phase 3)_i  
-  + β5(Post-training × Phase 2)_ij  
-  + β6(Follow-up × Phase 2)_ij  
-  + β7(Post-training × Phase 3)_ij  
-  + β8(Follow-up × Phase 3)_ij  
-  + u_i  
-  + ε_ij  
+Score_ij = β0 + β1(Post-training)ij + β2(1-Month Follow-up)ij + β3(Phase 2)ij + β4(Phase 3)ij + β5(Post-training × Phase 2)ij + β6(Follow-up × Phase 2)ij + β7(Post-training × Phase 3)ij + β8(Follow-up × Phase 3)ij + u_i + ε_ij  
 
 where:
 
