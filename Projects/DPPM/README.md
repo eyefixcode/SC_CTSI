@@ -1,49 +1,85 @@
 # SC CTSI – Diabetes Prevention Program Management and Training
-## Linear Mixed-Effects Model (LMM) Analysis for Knowledge Scores
+## Linear Mixed-Effects Model (LMM) Analysis for Knowledge and Confidence Outcomes
 
-This project contains the analytic workflow used to evaluate changes in diabetes knowledge following a structured training program, with a focus on whether learning and retention differed across sequential implementation phases. The primary analysis uses a **linear mixed-effects model (LMM)** to account for repeated measurements within participants and unbalanced follow-up.
+This project contains the analytic workflow used to evaluate changes in diabetes knowledge and self-efficacy (confidence) following a structured training program, with a focus on whether learning and retention differed across sequential implementation phases. The primary analyses use a **linear mixed-effects model (LMM)** to account for repeated measurements within participants and unbalanced follow-up.
 
-This folder is intended to support **manuscript development** and **reproducible analysis**, with manuscript-ready figures, tables, and diagnostics generated directly from the R script.
+This folder is intended to support **manuscript development** and **reproducible analysis**, with manuscript-ready figures, tables, and diagnostics generated directly from the R scripts.
 
 ---
 
 ## Repository Navigation
 
-- **R analysis script:** `Projects/DPPM/LMM.R`  
-  https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/LMM.R
+### R Analysis Scripts
 
-- **De-identified long-format dataset:** `Projects/DPPM/Data/LMM_long.csv`  
-  https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Data/LMM_long.csv
+- **Knowledge analysis script:** `Projects/DPPM/R_scripts/Knowledge.R`  
+  https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/R_scripts/Knowledge.R
 
-- **Results (figures/tables):** `Projects/DPPM/Results/`  
-  https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Results  
-  Current output:
-  - `LMM_Results.png`  
-    https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Results/LMM_Results.png
+- **Confidence analysis script:** `Projects/DPPM/R_scripts/Confidence.R`  
+  https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/R_scripts/Confidence.R
+
+---
+
+### Data
+
+- **Knowledge dataset (long format):**  
+  `Projects/DPPM/Data/LMM_long.csv`
+
+- **Confidence dataset (long format):**  
+  `Projects/DPPM/Data/Confidence_long.csv`
+
+---
+
+### Results (Figures)
+
+📂 Results directory:  
+https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Results
+
+#### Knowledge Outputs
+- `knowledge_box_by_phase_time.png`
+- `knowledge_emm_by_phase.png`
+- `knowledge_forest_fixed_effects.png`
+- `knowledge_residuals_vs_fitted.png`
+
+#### Confidence Outputs
+- `confidence_box_by_phase_time.png`
+- `confidence_emm_by_phase.png`
+- `confidence_forest_fixed_effects.png`
+- `confidence_residuals_vs_fitted.png`
+
+All figures are generated directly from their respective R scripts to ensure reproducibility.
 
 ---
 
 ## Project Structure (Quick View)
 
 - `Projects/DPPM/`
-  - `LMM.R` — end-to-end analysis script (data prep → modeling → figures/tables)
+  - `R_scripts/`
+    - `Knowledge.R` — end-to-end knowledge analysis (data prep → modeling → figures/tables)
+    - `Confidence.R` — parallel analysis pipeline for confidence outcomes
   - `Data/`
-    - `LMM_long.csv` — de-identified long-format participant dataset
+    - `LMM_long.csv`
+    - `Confidence_long.csv`
   - `Results/`
-    - `LMM_Results.png` — exported summary figure (more outputs forthcoming)
+    - Exported PNG figures (knowledge and confidence)
   - `README.md` — project documentation
 
 ---
 
 ## Data Format
 
-The dataset is stored in **long format**, where **each row represents one participant at one timepoint**.
+The datasets are stored in **long format**, where **each row represents one participant at one timepoint**.
 
-**Expected columns:**
+### Knowledge Dataset Columns
 - `ID` — participant identifier (de-identified)
 - `Phase` — implementation phase (`Phase 1`, `Phase 2`, `Phase 3`)
 - `Timepoint` — assessment timing (`pretraining`, `posttraining`, `followup`)
 - `Score` — knowledge score as **proportion correct** (0–1)
+
+### Confidence Dataset Columns
+- `ID` — participant identifier
+- `Phase` — implementation phase
+- `Timepoint` — assessment timing (`pretraining`, `posttraining`)
+- `Confidence` — confidence score (0–10 scale)
 
 ---
 
@@ -51,28 +87,39 @@ The dataset is stored in **long format**, where **each row represents one partic
 
 ### Study Design
 - Longitudinal repeated-measures design
-- Knowledge assessed at:
-  - **Pre-training**
-  - **Post-training**
-  - **1-Month Follow-up**
 - Participants enrolled across three sequential **implementation phases**
 
-### Why a Linear Mixed-Effects Model (LMM)?
+**Knowledge assessed at:**
+- Pre-training
+- Post-training
+- 1-Month Follow-up
+
+**Confidence assessed at:**
+- Pre-training
+- Post-training
+
+---
+
+## Why a Linear Mixed-Effects Model (LMM)?
+
 The LMM was selected because it:
+
 - Accounts for **correlated repeated measures** within participants
 - Accommodates **unbalanced data** and **missing follow-up** without dropping participants
 - Supports phase-specific comparisons via a **Timepoint × Phase interaction**
 - Produces interpretable, manuscript-ready estimates (e.g., adjusted means and contrasts)
 
+Models were fit using the `lme4` package in R, with Satterthwaite-approximated degrees of freedom and p-values provided by `lmerTest`.
+
 ---
 
-## Model Specification
+## Model Specification – Knowledge
 
-The primary analysis uses a linear mixed-effects model with fixed effects for **timepoint**, **implementation phase**, and their interaction, and a **participant-level random intercept** to account for repeated measurements.
+The primary knowledge analysis uses a linear mixed-effects model with fixed effects for **timepoint**, **implementation phase**, and their interaction, and a **participant-level random intercept** to account for repeated measurements.
 
 **Model form:**
 
-Score ij = β0 + β1(Post-training)ij + β2(1-Month Follow-up)ij + β3(Phase 2)ij + β4(Phase 3)ij + β5(Post-training × Phase 2)ij + β6(Follow-up × Phase 2)ij + β7(Post-training × Phase 3)ij + β8(Follow-up × Phase 3)ij + ui + εij  
+Score ij = β0 + β1(Post-training)ij + β2(1-Month Follow-up)ij + β3(Phase 2)ij + β4(Phase 3)ij + β5(Post-training × Phase 2)ij + β6(Follow-up × Phase 2)ij + β7(Post-training × Phase 3)ij + β8(Follow-up × Phase 3)ij + ui + εij  
 
 where:
 
@@ -90,80 +137,41 @@ where:
 
 ---
 
-## What `LMM.R` Produces
+## Model Specification – Confidence
+
+The confidence model follows the same framework but includes only two timepoints (Pre and Post).
+
+**Model form:**
+
+Confidence ij = β0 + β1(Post)ij + β2(Phase 2)ij + β3(Phase 3)ij + β4(Post × Phase 2)ij + β5(Post × Phase 3)ij + ui + εij  
+
+**Reference categories (for interpretation):**
+- Reference phase: **Phase 1**
+- Reference timepoint: **Pre-training**
+
+---
+
+## What the Scripts Produce
 
 ### 1) Descriptive Visualizations
-- Frequency distributions of knowledge scores:
-  - **Pooled by timepoint** (across phases)
-  - **Stratified by Phase × Timepoint** (counts with free y-scale for readability)
-- Optional density overlays for exploratory distribution checks
+- Boxplot + jittered individual values by Phase × Timepoint
 
 ### 2) Model Diagnostics (Assumption Checks)
 - Residuals vs. fitted values
 - Normal Q–Q plot of residuals
 
 ### 3) Model-Adjusted Estimates
-- Estimated marginal means (LS-means) for timepoint **within each phase**
+- Estimated marginal means (LS-means) for timepoint within each phase
 - 95% confidence intervals
 - Manuscript-ready profile plot of adjusted means over time
 
-### 4) SAS-Style Fixed Effects Table
-A “Solution for Fixed Effects”-style output table including:
+### 4) Fixed Effects Tables
 - β coefficients
 - Standard errors
 - Degrees of freedom (Satterthwaite)
-- *p*-values
+- p-values
 - 95% confidence intervals
-
----
-
-## Results Outputs
-
-📂 Results directory:  
-https://github.com/eyefixcode/SC_CTSI/tree/main/Projects/DPPM/Results
-
-### Descriptive Distributions
-
-- **`Histogram_Freq_By_Phase_Timepoint.png`**  
-  Frequency histograms of knowledge scores stratified by **Phase × Timepoint**.  
-  Panels use free y-axis scaling to accommodate unequal sample sizes and highlight distributional shape, ceiling effects, and phase-specific patterns.
-
-- **`Histogram_Pooled_By_Phase.png`**  
-  Knowledge score distributions pooled across timepoints and stratified by phase.  
-  Intended as a high-level descriptive summary of overall score distributions by implementation phase.
-
-- **`Density_Distribution_PhaseTimepoint.png`**  
-  Density-based representations of score distributions by phase and timepoint.  
-  These plots emphasize distributional shape rather than counts and are primarily intended for exploratory or supplemental use.
-
----
-
-### Model-Adjusted Results
-
-- **`KnowledgeScoreOverTimebyPhase.png`**  
-  Estimated marginal means (LS-means) of knowledge scores over time within each phase, derived from the linear mixed-effects model.  
-  Points represent adjusted means and error bars indicate 95% confidence intervals.  
-  This figure is the primary visualization supporting phase-specific learning and retention effects.
-
-- **`LMM_Results.png`**  
-  Summary visualization of fixed-effect estimates from the linear mixed-effects model.  
-  Designed to align directly with manuscript tables and reported coefficients.
-
----
-
-### Model Diagnostics
-
-- **`ResidualPlot.png`**  
-  Residuals versus fitted values plot used to assess linearity and homoscedasticity assumptions of the linear mixed-effects model.
-
-- **`QQ_plot.png`**  
-  Normal Q–Q plot of model residuals used to assess approximate normality.
-
----
-
-### Notes
-
-- All figures are generated directly from the analysis script (`LMM.R`) to ensure reproducibility.
+- Forest plot of fixed-effect estimates
 
 ---
 
@@ -179,4 +187,6 @@ This project is designed to:
 
 ## Contributions / Updates
 
-Additional exported figures and tables will be added as manuscript development progresses. Suggestions and extensions are welcome.
+All figures are generated directly from the analysis scripts (`Knowledge.R` and `Confidence.R`) to ensure reproducibility and analytic transparency.
+
+Additional exported figures and refinements may be added as manuscript development progresses.
