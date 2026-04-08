@@ -1,9 +1,9 @@
 ###############################################
 # Linear Mixed-Effects Model (LMM) Analysis
-# Diabetes Management Training – Confidence Scores
+# Diabetes Management Training – Self-Efficacy Scores
 #
 # Goal (manuscript-ready workflow; consistent with Knowledge analysis):
-#   1) Describe confidence score distributions over time (Pre, Post), overall and by Phase
+#   1) Describe self-efficacy score distributions over time (Pre, Post), overall and by Phase
 #   2) Fit an LMM to test whether change over time differs by implementation Phase
 #   3) Produce publishable outputs:
 #        - Missingness summary
@@ -14,7 +14,7 @@
 #        - Forest plot of fixed effects (APA/clinical style)
 #
 # Key difference vs Knowledge:
-#   - Confidence has only two timepoints (Pre, Post), so the model has fewer time terms.
+#   - Self-efficacy has two timepoints (Pre, Post), so no follow-up terms are included.
 #
 # Reference categories (interpretation):
 #   - Timepoint reference = Pre-training
@@ -41,10 +41,10 @@ library(broom.mixed)
 # 2) Read data (long format)
 # -----------------------------
 # Expected columns:
-#   ID        : participant identifier
-#   Phase     : Phase 1 / Phase 2 / Phase 3 (between-subject factor)
-#   Timepoint : pretraining / posttraining (within-subject factor)
-#   Confidence: confidence score (e.g., 0–10 scale)
+#   ID         : participant identifier
+#   Phase      : Phase 1 / Phase 2 / Phase 3 (between-subject factor)
+#   Timepoint  : pretraining / posttraining (within-subject factor)
+#   Confidence : self-efficacy score on 1–10 scale
 conf_data <- read_csv("Confidence_long.csv")
 
 # Quick integrity checks (QA)
@@ -63,8 +63,8 @@ phase_labels <- c("Phase 1", "Phase 2", "Phase 3")
 conf_data <- conf_data %>%
   mutate(
     ID         = factor(ID),
-    Timepoint  = factor(Timepoint, levels = time_levels_conf), # Pre-training reference
-    Phase      = factor(Phase, levels = phase_levels),         # Phase 1 reference
+    Timepoint  = factor(Timepoint, levels = time_levels_conf),  # Pre-training reference
+    Phase      = factor(Phase, levels = phase_levels),          # Phase 1 reference
     Confidence = as.numeric(Confidence),
     
     # Plot-only labels
@@ -101,23 +101,22 @@ conf_lmm_reduced <- lmer(
 interaction_test_confidence <- anova(conf_lmm_reduced, conf_lmm_full)
 interaction_test_confidence
 
-# Select final model based on interaction LRT p-value
+# Select ML model based on interaction LRT p-value
 p_int_conf <- interaction_test_confidence$`Pr(>Chisq)`[2]
-conf_lmm <- if (!is.na(p_int_conf) && p_int_conf < 0.05) conf_lmm_full else conf_lmm_reduced
+conf_lmm_selected_ml <- if (!is.na(p_int_conf) && p_int_conf < 0.05) conf_lmm_full else conf_lmm_reduced
 
 cat(
   "\nFinal model selected:",
-  if (identical(conf_lmm, conf_lmm_full)) "FULL (with interaction)" else "REDUCED (no interaction)",
+  if (identical(conf_lmm_selected_ml, conf_lmm_full)) "FULL (with interaction)" else "REDUCED (no interaction)",
   "\nInteraction LRT p-value:", p_int_conf, "\n\n"
 )
 
-summary(conf_lmm)
+summary(conf_lmm_selected_ml)
 
 # -----------------------------
 # 5b) Main-effects-only model (no interaction)
 # -----------------------------
-# Provides estimates assuming parallel change across phases.
-
+# This model provides estimates assuming no Timepoint × Phase interaction.
 summary(conf_lmm_reduced)
 
 conf_fixef_tbl_main_effects <- broom.mixed::tidy(
@@ -139,26 +138,44 @@ conf_fixef_tbl_main_effects <- broom.mixed::tidy(
 conf_fixef_tbl_main_effects
 
 # -----------------------------
+# 5c) Refit selected model with REML (final inference model)
+# -----------------------------
+selected_formula_conf <- if (!is.na(p_int_conf) && p_int_conf < 0.05) {
+  Confidence ~ Timepoint * Phase + (1 | ID)
+} else {
+  Confidence ~ Timepoint + Phase + (1 | ID)
+}
+
+conf_lmm_final <- lmer(
+  selected_formula_conf,
+  data = conf_data,
+  na.action = na.omit,
+  REML = TRUE
+)
+
+summary(conf_lmm_final)
+
+# -----------------------------
 # 6) Descriptive distribution plot (box + jitter)
 # -----------------------------
 # Unadjusted visualization: shows medians/IQR and individual values by phase and timepoint.
-# Tweaks for manuscript style:
-#   - Reduced point size and alpha to limit overplotting (especially Phase 2).
-#   - Keep boxplot prominent.
+set.seed(123)
+
 p_conf_box <- ggplot(plot_data_conf, aes(x = Timepoint_label, y = Confidence)) +
   geom_boxplot(outlier.shape = NA, width = 0.6, linewidth = 1) +
-  geom_jitter(width = 0.10, alpha = 0.35, size = 1.4) +
+  geom_jitter(width = 0.10, height = 0.03, alpha = 0.40, size = 1.4) +
   facet_wrap(~ Phase_label, nrow = 1) +
-  scale_y_continuous(limits = c(0, 10), breaks = seq(0, 10, 2)) +
+  coord_cartesian(ylim = c(1, 10)) +
+  scale_y_continuous(breaks = seq(1, 10, 1)) +
   labs(
-    title = "Confidence Score Distributions by Timepoint and Phase",
     x = "",
-    y = "Confidence Score"
+    y = "Self-Efficacy Score"
   ) +
   theme_classic(base_size = 13) +
   theme(
     strip.text = element_text(face = "bold"),
-    panel.grid = element_blank()
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
 p_conf_box
@@ -166,10 +183,10 @@ p_conf_box
 # -----------------------------
 # 7) Model diagnostics (assumptions checks)
 # -----------------------------
-# Replace base diagnostic scatter with ggplot version for consistent export and readability.
+# Use final REML model for diagnostics
 diag_df_conf <- data.frame(
-  fitted = fitted(conf_lmm),
-  resid  = resid(conf_lmm, type = "pearson")
+  fitted = fitted(conf_lmm_final),
+  resid  = resid(conf_lmm_final, type = "pearson")
 )
 
 p_conf_resid <- ggplot(diag_df_conf, aes(x = fitted, y = resid)) +
@@ -177,7 +194,7 @@ p_conf_resid <- ggplot(diag_df_conf, aes(x = fitted, y = resid)) +
   geom_point(size = 1.6, alpha = 0.5) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 0.8) +
   labs(
-    title = "Residuals vs Fitted (Confidence Model)",
+    title = "Residuals vs Fitted (Self-Efficacy Model)",
     x = "Fitted values",
     y = "Pearson residuals"
   ) +
@@ -186,14 +203,13 @@ p_conf_resid <- ggplot(diag_df_conf, aes(x = fitted, y = resid)) +
 
 p_conf_resid
 
-# Q–Q plot (base R is acceptable; title clarified for manuscript consistency)
-qqnorm(resid(conf_lmm), main = "Normal Q–Q Plot of Residuals (Confidence Model)")
-qqline(resid(conf_lmm))
+qqnorm(resid(conf_lmm_final), main = "Normal Q–Q Plot of Residuals (Self-Efficacy Model)")
+qqline(resid(conf_lmm_final))
 
 # -----------------------------
 # 8) Estimated Marginal Means (EMMs) + plot (model-adjusted)
 # -----------------------------
-emm_conf <- emmeans(conf_lmm, ~ Timepoint | Phase)
+emm_conf <- emmeans(conf_lmm_final, ~ Timepoint | Phase)
 
 emm_conf_df <- as.data.frame(emm_conf) %>%
   mutate(
@@ -203,9 +219,6 @@ emm_conf_df <- as.data.frame(emm_conf) %>%
 
 emm_conf_df
 
-# Manuscript-style EMM plot:
-#   - Avoid reliance on color; use linetype + shape with black ink.
-#   - Classic theme; legend moved to bottom.
 p_conf_emm <- ggplot(
   emm_conf_df,
   aes(
@@ -218,17 +231,16 @@ p_conf_emm <- ggplot(
   geom_line(linewidth = 0.9, color = "black") +
   geom_point(size = 2.6, color = "black") +
   geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.08, linewidth = 0.7, color = "black") +
-  scale_y_continuous(limits = c(0, 10), breaks = seq(0, 10, 2)) +
+  coord_cartesian(ylim = c(1, 10)) +
+  scale_y_continuous(breaks = seq(1, 10, 1)) +
   labs(
-    title = "Estimated Confidence Scores Over Time by Phase (Model-Adjusted)",
     x = "Timepoint",
-    y = "Estimated Mean Confidence Score",
+    y = "Estimated Mean Self-Efficacy Score",
     linetype = "Phase",
     shape = "Phase"
   ) +
   theme_classic(base_size = 12) +
   theme(
-    plot.title = element_text(face = "bold", hjust = 0.5),
     legend.position = "bottom",
     legend.title = element_text(face = "bold")
   )
@@ -236,7 +248,7 @@ p_conf_emm <- ggplot(
 p_conf_emm
 
 # -----------------------------
-# 9) Fixed effects tables (FULL, REDUCED, SELECTED)
+# 9) Fixed effects tables (FULL, REDUCED, SELECTED, FINAL)
 # -----------------------------
 conf_fixef_tbl_full <- broom.mixed::tidy(conf_lmm_full, effects = "fixed", conf.int = TRUE) %>%
   transmute(
@@ -264,7 +276,20 @@ conf_fixef_tbl_reduced <- broom.mixed::tidy(conf_lmm_reduced, effects = "fixed",
   ) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3)))
 
-conf_fixef_tbl_selected <- broom.mixed::tidy(conf_lmm, effects = "fixed", conf.int = TRUE) %>%
+conf_fixef_tbl_selected <- broom.mixed::tidy(conf_lmm_selected_ml, effects = "fixed", conf.int = TRUE) %>%
+  transmute(
+    Effect   = term,
+    Estimate = estimate,
+    SE       = std.error,
+    DF       = df,
+    tValue   = statistic,
+    pValue   = p.value,
+    CI_Lower = conf.low,
+    CI_Upper = conf.high
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+conf_fixef_tbl_final <- broom.mixed::tidy(conf_lmm_final, effects = "fixed", conf.int = TRUE) %>%
   transmute(
     Effect   = term,
     Estimate = estimate,
@@ -280,58 +305,55 @@ conf_fixef_tbl_selected <- broom.mixed::tidy(conf_lmm, effects = "fixed", conf.i
 conf_fixef_tbl_full
 conf_fixef_tbl_reduced
 conf_fixef_tbl_selected
+conf_fixef_tbl_final
 
 # -----------------------------
 # 10) Forest plot of fixed effects (APA/clinical style)
 # -----------------------------
-# Key change for consistency:
-#   - Build the forest plot from the SELECTED model (conf_lmm), not always the full model.
-#   - Term mapping adapts automatically depending on whether interaction terms exist.
-
-forest_data_conf <- broom.mixed::tidy(conf_lmm, effects = "fixed", conf.int = TRUE) %>%
+# Build forest plot from final REML model
+forest_data_conf <- broom.mixed::tidy(conf_lmm_final, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%
   mutate(
     term_clean = case_when(
-      term == "PhasePhase 2" ~ "Phase 2 vs Phase 1 (baseline)",
-      term == "PhasePhase 3" ~ "Phase 3 vs Phase 1 (baseline)",
-      term == "Timepointposttraining" ~ "Post vs Pre",
-      term == "Timepointposttraining:PhasePhase 2" ~ "Post × Phase 2",
-      term == "Timepointposttraining:PhasePhase 3" ~ "Post × Phase 3",
+      term == "PhasePhase 2" ~ "Phase 2 vs Phase 1 (reference)",
+      term == "PhasePhase 3" ~ "Phase 3 vs Phase 1 (reference)",
+      term == "Timepointposttraining" ~ "Post-training vs Pre-training",
+      term == "Timepointposttraining:PhasePhase 2" ~ "Post-training × Phase 2",
+      term == "Timepointposttraining:PhasePhase 3" ~ "Post-training × Phase 3",
       TRUE ~ term
     ),
     block = ifelse(grepl("×", term_clean), "Interaction terms", "Main effects"),
     block = factor(block, levels = c("Main effects", "Interaction terms"))
   )
 
-# Order only the terms that are present (prevents errors if reduced model was selected)
 preferred_order_conf <- c(
-  "Phase 2 vs Phase 1 (baseline)",
-  "Phase 3 vs Phase 1 (baseline)",
-  "Post vs Pre",
-  "Post × Phase 2",
-  "Post × Phase 3"
+  "Phase 2 vs Phase 1 (reference)",
+  "Phase 3 vs Phase 1 (reference)",
+  "Post-training vs Pre-training",
+  "Post-training × Phase 2",
+  "Post-training × Phase 3"
 )
 
-present_terms <- preferred_order_conf[preferred_order_conf %in% forest_data_conf$term_clean]
-forest_data_conf <- forest_data_conf %>%
-  mutate(term_clean = factor(term_clean, levels = rev(present_terms)))
+present_terms_conf <- preferred_order_conf[preferred_order_conf %in% forest_data_conf$term_clean]
 
-# Symmetric x-limits around 0; clean tick spacing
+forest_data_conf <- forest_data_conf %>%
+  mutate(term_clean = factor(term_clean, levels = rev(present_terms_conf)))
+
 lim_conf <- max(abs(c(forest_data_conf$conf.low, forest_data_conf$conf.high)), na.rm = TRUE)
 lim_conf <- ceiling(lim_conf)
 
 p_conf_forest <- ggplot(forest_data_conf, aes(x = estimate, y = term_clean)) +
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.6) +
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.18, linewidth = 0.9) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), linewidth = 0.9) +
   geom_point(size = 2.8) +
   facet_grid(block ~ ., scales = "free_y", space = "free_y", switch = "y") +
   scale_x_continuous(
     limits = c(-lim_conf, lim_conf),
-    breaks = seq(-lim_conf, lim_conf, by = 2)
+    breaks = seq(-lim_conf, lim_conf, by = 1)
   ) +
   labs(
-    title = "Fixed-Effects Estimates for Confidence Scores",
-    x = "Estimate (change in confidence score)",
+    title = "Fixed-Effects Estimates for Self-Efficacy Scores",
+    x = "Estimate (change in self-efficacy score)",
     y = NULL
   ) +
   theme_classic(base_size = 12) +
@@ -351,21 +373,22 @@ p_conf_forest
 # -----------------------------
 # Optional exports (tables)
 # -----------------------------
-# write.csv(conf_fixef_tbl_full,     "Confidence_FixedEffectsTable_FULL.csv",     row.names = FALSE)
-# write.csv(conf_fixef_tbl_reduced,  "Confidence_FixedEffectsTable_REDUCED.csv",  row.names = FALSE)
-# write.csv(conf_fixef_tbl_selected, "Confidence_FixedEffectsTable_SELECTED.csv", row.names = FALSE)
+# write.csv(conf_fixef_tbl_full,     "SelfEfficacy_FixedEffectsTable_FULL.csv",     row.names = FALSE)
+# write.csv(conf_fixef_tbl_reduced,  "SelfEfficacy_FixedEffectsTable_REDUCED.csv",  row.names = FALSE)
+# write.csv(conf_fixef_tbl_selected, "SelfEfficacy_FixedEffectsTable_SELECTED.csv", row.names = FALSE)
+# write.csv(conf_fixef_tbl_final,    "SelfEfficacy_FixedEffectsTable_FINAL.csv",    row.names = FALSE)
 
 # -----------------------------
 # 11) Export key plots to PNG (standardized)
 # -----------------------------
-fig_dir <- "figures_png_confidence"
+fig_dir <- "figures_png_selfefficacy"
 if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 
 plots_to_save <- list(
-  "confidence_box_by_phase_time"    = p_conf_box,
-  "confidence_residuals_vs_fitted"  = p_conf_resid,
-  "confidence_emm_by_phase"         = p_conf_emm,
-  "confidence_forest_fixed_effects" = p_conf_forest
+  "selfefficacy_box_by_phase_time"    = p_conf_box,
+  "selfefficacy_residuals_vs_fitted"  = p_conf_resid,
+  "selfefficacy_emm_by_phase"         = p_conf_emm,
+  "selfefficacy_forest_fixed_effects" = p_conf_forest
 )
 
 for (nm in names(plots_to_save)) {
@@ -382,4 +405,12 @@ for (nm in names(plots_to_save)) {
 }
 
 message("Saved ", length(plots_to_save), " plots to: ", normalizePath(fig_dir))
+
+###############################################
+message("################ REFERENCES : ################")
+citation()
+citation(package = "lme4")
+citation(package = "lmerTest")
+###############################################
+# END #
 ###############################################

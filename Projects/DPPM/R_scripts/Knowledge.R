@@ -2,7 +2,7 @@
 # Linear Mixed-Effects Model (LMM) Analysis
 # Diabetes Management Training – Knowledge Scores
 #
-# Goal (manuscript-ready workflow; consistent with Confidence analysis):
+# Goal (manuscript-ready workflow; consistent with Self-Efficacy analysis):
 #   1) Describe knowledge score distributions over time (Pre, Post, Follow-up), overall and by Phase
 #   2) Fit an LMM to test whether change over time differs by implementation Phase
 #   3) Produce publishable outputs:
@@ -10,11 +10,11 @@
 #        - Descriptive plots (box + jitter)
 #        - Model diagnostics (residuals vs fitted; Q–Q)
 #        - EMM (model-adjusted means) plot + EMM table
-#        - Fixed-effects tables (full, reduced, selected)
+#        - Fixed-effects tables (full, reduced, selected, final)
 #        - Forest plot of fixed effects (APA/clinical style)
 #
-# Key difference vs Confidence:
-#   - Knowledge has three timepoints (Pre, Post, Follow-up), so the model includes follow-up terms.
+# Key difference vs Self-Efficacy:
+#   - Knowledge has three timepoints (Pre, Post, Follow-up), so follow-up terms are included.
 #
 # Reference categories (interpretation):
 #   - Timepoint reference = Pre-training
@@ -102,27 +102,25 @@ lmm_reduced <- lmer(
 interaction_test_knowledge <- anova(lmm_reduced, lmm_full)
 interaction_test_knowledge
 
-# Select final model based on interaction LRT p-value
+# Select ML model based on interaction LRT p-value
 p_int_know <- interaction_test_knowledge$`Pr(>Chisq)`[2]
-lmm <- if (!is.na(p_int_know) && p_int_know < 0.05) lmm_full else lmm_reduced
+lmm_selected_ml <- if (!is.na(p_int_know) && p_int_know < 0.05) lmm_full else lmm_reduced
 
 cat(
   "\nFinal model selected:",
-  if (identical(lmm, lmm_full)) "FULL (with interaction)" else "REDUCED (no interaction)",
+  if (identical(lmm_selected_ml, lmm_full)) "FULL (with interaction)" else "REDUCED (no interaction)",
   "\nInteraction LRT p-value:", p_int_know, "\n\n"
 )
 
-summary(lmm)
+summary(lmm_selected_ml)
 
 # -----------------------------
 # 5b) Main-effects-only model (no interaction)
 # -----------------------------
 # This model provides estimates assuming no Timepoint × Phase interaction.
-# Useful for reporting “unadjusted for interaction” effects.
-
 summary(lmm_reduced)
 
-fixef_tbl_main_effects <- broom.mixed::tidy(
+know_fixef_tbl_main_effects <- broom.mixed::tidy(
   lmm_reduced,
   effects = "fixed",
   conf.int = TRUE
@@ -138,22 +136,42 @@ fixef_tbl_main_effects <- broom.mixed::tidy(
     CI_Upper = round(conf.high, 3)
   )
 
-fixef_tbl_main_effects
+know_fixef_tbl_main_effects
+
+# -----------------------------
+# 5c) Refit selected model with REML (final inference model)
+# -----------------------------
+selected_formula_know <- if (!is.na(p_int_know) && p_int_know < 0.05) {
+  Score ~ Timepoint * Phase + (1 | ID)
+} else {
+  Score ~ Timepoint + Phase + (1 | ID)
+}
+
+lmm_final <- lmer(
+  selected_formula_know,
+  data = lmm_data,
+  na.action = na.omit,
+  REML = TRUE
+)
+
+summary(lmm_final)
 
 # -----------------------------
 # 6) Descriptive distribution plot (box + jitter)
 # -----------------------------
 # Unadjusted visualization: shows medians/IQR and individual values by phase and timepoint.
-# Tweaks for manuscript style:
-#   - Reduced point size and alpha to limit overplotting (especially Phase 2).
-#   - Keep boxplot prominent.
+set.seed(123)
+
 p_know_box <- ggplot(plot_data_know, aes(x = Timepoint_label, y = Score)) +
   geom_boxplot(outlier.shape = NA, width = 0.6, linewidth = 1) +
-  geom_jitter(width = 0.10, alpha = 0.35, size = 1.4) +
+  geom_jitter(width = 0.10, height = 0.01, alpha = 0.40, size = 1.4) +
   facet_wrap(~ Phase_label, nrow = 1) +
-  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  coord_cartesian(ylim = c(0, 1)) +
+  scale_y_continuous(
+    breaks = seq(0, 1, by = 0.1),
+    labels = percent_format(accuracy = 1)
+  ) +
   labs(
-    title = "Knowledge Score Distributions by Timepoint and Phase",
     x = "",
     y = "Knowledge Score (% Correct)"
   ) +
@@ -169,10 +187,10 @@ p_know_box
 # -----------------------------
 # 7) Model diagnostics (assumptions checks)
 # -----------------------------
-# Replace base diagnostic scatter with ggplot version for consistent export and readability.
+# Use final REML model for diagnostics
 diag_df_know <- data.frame(
-  fitted = fitted(lmm),
-  resid  = resid(lmm, type = "pearson")
+  fitted = fitted(lmm_final),
+  resid  = resid(lmm_final, type = "pearson")
 )
 
 p_know_resid <- ggplot(diag_df_know, aes(x = fitted, y = resid)) +
@@ -189,14 +207,13 @@ p_know_resid <- ggplot(diag_df_know, aes(x = fitted, y = resid)) +
 
 p_know_resid
 
-# Q–Q plot (base R acceptable; title clarified for manuscript consistency)
-qqnorm(resid(lmm), main = "Normal Q–Q Plot of Residuals (Knowledge Model)")
-qqline(resid(lmm))
+qqnorm(resid(lmm_final), main = "Normal Q–Q Plot of Residuals (Knowledge Model)")
+qqline(resid(lmm_final))
 
 # -----------------------------
 # 8) Estimated Marginal Means (EMMs) + plot (model-adjusted)
 # -----------------------------
-emm_know <- emmeans(lmm, ~ Timepoint | Phase)
+emm_know <- emmeans(lmm_final, ~ Timepoint | Phase)
 
 emm_know_df <- as.data.frame(emm_know) %>%
   mutate(
@@ -206,9 +223,6 @@ emm_know_df <- as.data.frame(emm_know) %>%
 
 emm_know_df
 
-# Manuscript-style EMM plot:
-#   - Avoid reliance on color; use linetype + shape with black ink.
-#   - Classic theme; legend moved to bottom.
 p_know_emm <- ggplot(
   emm_know_df,
   aes(
@@ -221,9 +235,12 @@ p_know_emm <- ggplot(
   geom_line(linewidth = 0.9, color = "black") +
   geom_point(size = 2.6, color = "black") +
   geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.08, linewidth = 0.7, color = "black") +
-  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1)) +
+  coord_cartesian(ylim = c(0, 1)) +
+  scale_y_continuous(
+    breaks = seq(0, 1, by = 0.1),
+    labels = percent_format(accuracy = 1)
+  ) +
   labs(
-    title = "Estimated Knowledge Scores Over Time by Phase (Model-Adjusted)",
     x = "Timepoint",
     y = "Estimated Mean Knowledge Score (% Correct)",
     linetype = "Phase",
@@ -231,7 +248,6 @@ p_know_emm <- ggplot(
   ) +
   theme_classic(base_size = 12) +
   theme(
-    plot.title = element_text(face = "bold", hjust = 0.5),
     legend.position = "bottom",
     legend.title = element_text(face = "bold")
   )
@@ -239,7 +255,7 @@ p_know_emm <- ggplot(
 p_know_emm
 
 # -----------------------------
-# 9) Fixed effects tables (FULL, REDUCED, SELECTED)
+# 9) Fixed effects tables (FULL, REDUCED, SELECTED, FINAL)
 # -----------------------------
 know_fixef_tbl_full <- broom.mixed::tidy(lmm_full, effects = "fixed", conf.int = TRUE) %>%
   transmute(
@@ -267,7 +283,20 @@ know_fixef_tbl_reduced <- broom.mixed::tidy(lmm_reduced, effects = "fixed", conf
   ) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3)))
 
-know_fixef_tbl_selected <- broom.mixed::tidy(lmm, effects = "fixed", conf.int = TRUE) %>%
+know_fixef_tbl_selected <- broom.mixed::tidy(lmm_selected_ml, effects = "fixed", conf.int = TRUE) %>%
+  transmute(
+    Effect   = term,
+    Estimate = estimate,
+    SE       = std.error,
+    DF       = df,
+    tValue   = statistic,
+    pValue   = p.value,
+    CI_Lower = conf.low,
+    CI_Upper = conf.high
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+know_fixef_tbl_final <- broom.mixed::tidy(lmm_final, effects = "fixed", conf.int = TRUE) %>%
   transmute(
     Effect   = term,
     Estimate = estimate,
@@ -283,16 +312,15 @@ know_fixef_tbl_selected <- broom.mixed::tidy(lmm, effects = "fixed", conf.int = 
 know_fixef_tbl_full
 know_fixef_tbl_reduced
 know_fixef_tbl_selected
+know_fixef_tbl_final
 
 # -----------------------------
 # 10) Forest plot of fixed effects (APA/clinical style)
 # -----------------------------
-# Key change for consistency:
-#   - Build the forest plot from the SELECTED model (lmm), not always the full model.
-#   - Term mapping adapts automatically depending on whether interaction terms exist.
+# Build forest plot from final REML model
 pp <- 100  # express effects as percentage points
 
-forest_data_know <- broom.mixed::tidy(lmm, effects = "fixed", conf.int = TRUE) %>%
+forest_data_know <- broom.mixed::tidy(lmm_final, effects = "fixed", conf.int = TRUE) %>%
   filter(term != "(Intercept)") %>%
   mutate(
     estimate  = estimate  * pp,
@@ -315,7 +343,6 @@ forest_data_know <- broom.mixed::tidy(lmm, effects = "fixed", conf.int = TRUE) %
     block = factor(block, levels = c("Main effects", "Interaction terms"))
   )
 
-# Order only the terms that are present (prevents errors if reduced model was selected)
 preferred_order_know <- c(
   "Phase 2 vs Phase 1 (reference)",
   "Phase 3 vs Phase 1 (reference)",
@@ -327,17 +354,17 @@ preferred_order_know <- c(
   "Follow-up × Phase 3"
 )
 
-present_terms <- preferred_order_know[preferred_order_know %in% forest_data_know$term_clean]
-forest_data_know <- forest_data_know %>%
-  mutate(term_clean = factor(term_clean, levels = rev(present_terms)))
+present_terms_know <- preferred_order_know[preferred_order_know %in% forest_data_know$term_clean]
 
-# Symmetric x-limits around 0; clean tick spacing
+forest_data_know <- forest_data_know %>%
+  mutate(term_clean = factor(term_clean, levels = rev(present_terms_know)))
+
 lim_know <- max(abs(c(forest_data_know$conf.low, forest_data_know$conf.high)), na.rm = TRUE)
 lim_know <- ceiling(lim_know / 10) * 10
 
 p_know_forest <- ggplot(forest_data_know, aes(x = estimate, y = term_clean)) +
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.6) +
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.18, linewidth = 0.9) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), linewidth = 0.9) +
   geom_point(size = 2.8) +
   facet_grid(block ~ ., scales = "free_y", space = "free_y", switch = "y") +
   scale_x_continuous(
@@ -369,6 +396,7 @@ p_know_forest
 # write.csv(know_fixef_tbl_full,     "Knowledge_FixedEffectsTable_FULL.csv",     row.names = FALSE)
 # write.csv(know_fixef_tbl_reduced,  "Knowledge_FixedEffectsTable_REDUCED.csv",  row.names = FALSE)
 # write.csv(know_fixef_tbl_selected, "Knowledge_FixedEffectsTable_SELECTED.csv", row.names = FALSE)
+# write.csv(know_fixef_tbl_final,    "Knowledge_FixedEffectsTable_FINAL.csv",    row.names = FALSE)
 
 # -----------------------------
 # 11) Export key plots to PNG (standardized)
@@ -397,4 +425,12 @@ for (nm in names(plots_to_save)) {
 }
 
 message("Saved ", length(plots_to_save), " plots to: ", normalizePath(fig_dir))
+
+###############################################
+message("################ REFERENCES : ################")
+citation()
+citation(package = "lme4")
+citation(package = "lmerTest")
+###############################################
+# END #
 ###############################################
